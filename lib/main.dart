@@ -1,100 +1,129 @@
+import 'package:flutter/cupertino.dart';
+import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:flutter_sound/flutter_sound.dart';
+import 'package:path_provider/path_provider.dart';
+import 'package:permission_handler/permission_handler.dart';
 
-void main() {
-  runApp(const MyApp());
-}
+
+
+void main() => runApp(MyApp());
 
 class MyApp extends StatelessWidget {
-  const MyApp({super.key});
-
-  // This widget is the root of your application.
+  
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
       debugShowCheckedModeBanner: false,
       title: 'Flutter Demo',
+      home: Scaffold(
+        body: AudioRecorder(),
+      ),
       theme: ThemeData(
-
         primarySwatch: Colors.blue,
       ),
-      home: const MyHomePage(title: 'Flutter Demo Home Page'),
+
     );
   }
 }
 
-class MyHomePage extends StatefulWidget {
-  const MyHomePage({super.key, required this.title});
-
-
-  final String title;
-
+class AudioRecorder extends StatefulWidget {
   @override
-  State<MyHomePage> createState() => _MyHomePageState();
+  _AudioRecorderState createState() => _AudioRecorderState();
 }
 
-class _MyHomePageState extends State<MyHomePage> {
+class _AudioRecorderState extends State<AudioRecorder> {
+  bool _isRecording = false;
+  FlutterSoundRecorder? _audioRecorder;
+  FlutterSoundPlayer? _audioPlayer;
 
+  @override
+  void initState() {
+    super.initState();
+    _initializeAudio();
+  }
+
+  void _initializeAudio() {
+    _audioRecorder = FlutterSoundRecorder();
+    _audioPlayer = FlutterSoundPlayer();
+    _audioPlayer!.openAudioSession();
+  }
+
+  @override
+  void dispose() {
+    _audioRecorder!.closeAudioSession();
+    _audioPlayer!.closeAudioSession();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
-
     return Scaffold(
-      extendBodyBehindAppBar: true,
       appBar: AppBar(
-        title: Text(""),
-        backgroundColor: Colors.transparent,
-        elevation: 0.0,
+        title: Text('Audio Recorder'),
       ),
       body: Center(
-
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
-          children: <Widget>[
-            Container(
-              height: 400,
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.topCenter,
-                    end: Alignment.bottomCenter,
-                    colors: [Color.fromARGB(255, 2, 199, 256), Color.fromARGB(255, 6, 75, 210)]
-                ),
-                borderRadius: BorderRadius.vertical(
-                  bottom: Radius.elliptical(MediaQuery.of(context).size.width, 100.0)
-                )
-              ),
-              child: Text(
-                "Textrecd",
-                style: TextStyle(
-                  fontSize: 70,
-                ),
-              ),
+          children: [
+            _isRecording
+                ? Text('Recording...')
+                : ElevatedButton(
+              onPressed: _startRecording,
+              child: Text('Start Recording'),
             ),
-            SizedBox(height: 20,),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: <Widget>[
-                ElevatedButton(
-                  style: ElevatedButton.styleFrom(
-                    padding: EdgeInsets.all(5.0),
-                    side: BorderSide(
-                      color: Colors.orange,
-                      width: 3.0,
-                    ),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(15),
-                    ),primary: Colors.white,
-                    //elevation: like a box shadow
-                    elevation: 10.0,
-                  ),
-            onPressed: (){},
-               child:Icon(Icons.mic,color: Colors.red,))
-              ],
-            )
-
-
+            SizedBox(height: 20),
+            ElevatedButton(
+              onPressed: _isRecording ? _stopRecording : null,
+              child: Text('Stop Recording'),
+            ),
+            SizedBox(height: 20),
+            ElevatedButton(
+              onPressed: _playRecordedAudio,
+              child: Text('Play Recorded Audio'),
+            ),
           ],
         ),
       ),
-          );
+    );
+  }
+
+  void _startRecording() async {
+    if (await _requestPermission(Permission.microphone)) {
+      String filePath = await _getFilePath();
+      await _audioRecorder!.openAudioSession();
+      await _audioRecorder!.startRecorder(
+        toFile: filePath,
+        codec: Codec.aacMP4,
+      );
+      setState(() => _isRecording = true);
+    } else {
+      print('Permission denied.');
+    }
+  }
+
+  void _stopRecording() async {
+    await _audioRecorder!.stopRecorder();
+    setState(() => _isRecording = false);
+  }
+
+  Future<String> _getFilePath() async {
+    Directory appDir = await getApplicationDocumentsDirectory();
+    String filePath = appDir.path + '/recorded_audio.aac';
+    return filePath;
+  }
+
+  Future<bool> _requestPermission(Permission permission) async {
+    PermissionStatus status = await permission.request();
+    return status.isGranted;
+  }
+
+  void _playRecordedAudio() async {
+    String filePath = await _getFilePath();
+    await _audioPlayer!.startPlayer(
+      fromURI: filePath,
+      codec: Codec.aacMP4,
+    );
   }
 }
+
